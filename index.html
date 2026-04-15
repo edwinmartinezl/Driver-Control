@@ -2,9 +2,19 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#58CC02" />
   <title>Driver Control</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="/icon-192.svg" />
+  <link rel="apple-touch-icon" href="/icon-192.svg" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Driver Control" />
+  <meta name="description" content="Controla tus ganancias cada día — Driver Control" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -359,6 +369,21 @@
     function DataProvider({ children }) {
       const { user } = useAuth();
       const [records, setRecords] = useState([]);
+      const [syncStatus, setSyncStatus] = useState(
+        typeof navigator !== "undefined" && navigator.onLine === false ? "offline" : "synced"
+      );
+
+      // Listeners online/offline
+      useEffect(() => {
+        const onOnline = () => setSyncStatus(s => (s === "offline" ? "synced" : s));
+        const onOffline = () => setSyncStatus("offline");
+        window.addEventListener("online", onOnline);
+        window.addEventListener("offline", onOffline);
+        return () => {
+          window.removeEventListener("online", onOnline);
+          window.removeEventListener("offline", onOffline);
+        };
+      }, []);
 
       useEffect(() => {
         if (!user) { setRecords([]); return; }
@@ -382,25 +407,44 @@
         return () => ref.off("value", handler);
       }, [user]);
 
+      const withSyncStatus = async (op) => {
+        if (!navigator.onLine) {
+          setSyncStatus("offline");
+        } else {
+          setSyncStatus("saving");
+        }
+        try {
+          const r = await op();
+          setSyncStatus(navigator.onLine ? "synced" : "offline");
+          return r;
+        } catch (e) {
+          setSyncStatus("error");
+          setTimeout(() => setSyncStatus(navigator.onLine ? "synced" : "offline"), 3000);
+          throw e;
+        }
+      };
+
       const upsert = (rec) => {
         if (!user) return Promise.reject(new Error("no-user"));
         const ingreso = Number(rec.ingreso) || 0;
         const gasolina = Number(rec.gasolina) || 0;
         const mantenimiento = Number(rec.mantenimiento) || 0;
-        return db.ref(`users/${user.uid}/registros/${rec.fecha}`).set({
-          ingreso, gasolina, mantenimiento,
-          nota: (rec.nota || "").trim(),
-          neto: ingreso - gasolina - mantenimiento,
-          updatedAt: firebase.database.ServerValue.TIMESTAMP,
-        });
+        return withSyncStatus(() =>
+          db.ref(`users/${user.uid}/registros/${rec.fecha}`).set({
+            ingreso, gasolina, mantenimiento,
+            nota: (rec.nota || "").trim(),
+            neto: ingreso - gasolina - mantenimiento,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP,
+          })
+        );
       };
 
       const remove = (fecha) => {
         if (!user) return Promise.reject(new Error("no-user"));
-        return db.ref(`users/${user.uid}/registros/${fecha}`).remove();
+        return withSyncStatus(() => db.ref(`users/${user.uid}/registros/${fecha}`).remove());
       };
 
-      return <DataContext.Provider value={{ records, upsert, remove }}>{children}</DataContext.Provider>;
+      return <DataContext.Provider value={{ records, upsert, remove, syncStatus }}>{children}</DataContext.Provider>;
     }
 
     const useData = () => useContext(DataContext);
@@ -494,6 +538,30 @@
       );
     }
 
+    function SyncDot() {
+      const { syncStatus } = useData();
+      const map = {
+        synced: { color: "#58CC02", label: "Sincronizado", spin: false },
+        saving: { color: "#58CC02", label: "Guardando...", spin: true },
+        offline: { color: "#9AA0A6", label: "Sin conexión", spin: false },
+        error: { color: "#FF4B4B", label: "Error al guardar", spin: false },
+      };
+      const s = map[syncStatus] || map.synced;
+      return (
+        <span title={s.label} className="inline-flex items-center justify-center" style={{ width: 10, height: 10 }}>
+          {s.spin ? (
+            <svg width="10" height="10" viewBox="0 0 24 24" className="animate-spin">
+              <circle cx="12" cy="12" r="10" stroke={s.color} strokeOpacity="0.25" strokeWidth="4" fill="none"/>
+              <path d="M22 12a10 10 0 00-10-10" stroke={s.color} strokeWidth="4" fill="none" strokeLinecap="round"/>
+            </svg>
+          ) : (
+            <span className="block rounded-full transition-colors duration-300"
+                  style={{ width: 8, height: 8, background: s.color }} />
+          )}
+        </span>
+      );
+    }
+
     function Header({ title = "Driver Control", onAvatar }) {
       const { user } = useAuth();
       const photo = user && user.photoURL;
@@ -501,6 +569,7 @@
       return (
         <div className="flex items-center justify-between px-5 py-4">
           <div className="flex items-center gap-2">
+            <SyncDot />
             <CartLogo size={34} />
             <span className="font-black text-[#3C3C3C] text-lg">{title}</span>
           </div>
@@ -678,7 +747,7 @@
 
       return (
         <div className="fade-in px-5 pb-32">
-          <h1 className="text-3xl font-black text-[#3C3C3C] pt-4 pb-5">Historial</h1>
+          <h1 className="text-3xl font-black text-[#3C3C3C] pb-5">Historial</h1>
           {months.length === 0 ? (
             <EmptyState title="Sin historial todavía" subtitle="Registra días para ver tus meses aquí" />
           ) : (
@@ -695,6 +764,75 @@
                 </button>
               ))}
             </div>
+          )}
+        </div>
+      );
+    }
+
+    function InstallCard() {
+      const [deferred, setDeferred] = useState(null);
+      const [installed, setInstalled] = useState(false);
+      const [showIOS, setShowIOS] = useState(false);
+
+      useEffect(() => {
+        const standalone =
+          window.matchMedia("(display-mode: standalone)").matches ||
+          window.navigator.standalone === true;
+        if (standalone) { setInstalled(true); return; }
+
+        const onBIP = (e) => { e.preventDefault(); setDeferred(e); };
+        const onInstalled = () => { setInstalled(true); setDeferred(null); };
+        window.addEventListener("beforeinstallprompt", onBIP);
+        window.addEventListener("appinstalled", onInstalled);
+
+        const ua = navigator.userAgent || "";
+        const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+        if (isIOS) setShowIOS(true);
+
+        return () => {
+          window.removeEventListener("beforeinstallprompt", onBIP);
+          window.removeEventListener("appinstalled", onInstalled);
+        };
+      }, []);
+
+      const handleInstall = async () => {
+        if (!deferred) return;
+        deferred.prompt();
+        const { outcome } = await deferred.userChoice;
+        if (outcome === "accepted") setInstalled(true);
+        setDeferred(null);
+      };
+
+      if (installed) return null;
+
+      return (
+        <div className="w-full card-soft mt-4 p-5">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-[#DFFBC2] flex items-center justify-center text-xl">📲</div>
+            <div>
+              <div className="font-black text-[#3C3C3C]">Instalar en tu dispositivo</div>
+              <div className="text-xs font-semibold text-[#777]">Úsala como una app nativa, sin barra del navegador</div>
+            </div>
+          </div>
+
+          {deferred && (
+            <button onClick={handleInstall}
+                    className="btn-3d btn-green w-full h-12 mt-3 rounded-full text-white font-black uppercase tracking-wide">
+              Instalar app
+            </button>
+          )}
+
+          {!deferred && showIOS && (
+            <p className="text-sm text-[#3C3C3C] font-semibold mt-2 leading-snug">
+              En Safari: toca el botón <span className="font-black">Compartir</span> ⬆ y luego
+              <span className="font-black"> Agregar a pantalla de inicio</span>.
+            </p>
+          )}
+
+          {!deferred && !showIOS && (
+            <p className="text-sm text-[#3C3C3C] font-semibold mt-2 leading-snug">
+              En Chrome/Edge: abre el menú ⋮ y toca <span className="font-black">Instalar aplicación</span> o <span className="font-black">Agregar a pantalla de inicio</span>.
+            </p>
           )}
         </div>
       );
@@ -732,7 +870,7 @@
       };
 
       return (
-        <div className="fade-in flex flex-col items-center px-8 pt-10 pb-32">
+        <div className="fade-in flex flex-col items-center px-8 pt-4 pb-32">
           <div className="w-28 h-28 rounded-full bg-[#E5E5E5] overflow-hidden flex items-center justify-center text-4xl font-black text-[#999]">
             {photo ? <img src={photo} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : initial}
           </div>
@@ -969,10 +1107,8 @@
 
       return (
         <AppFrame>
-          {tab === "home" && <>
-            <Header onAvatar={() => setTab("perf")} />
-            <Home onEditRecord={openEdit} />
-          </>}
+          <Header onAvatar={() => setTab("perf")} />
+          {tab === "home" && <Home onEditRecord={openEdit} />}
           {tab === "hist" && <Historial onEditRecord={openEdit} />}
           {tab === "perf" && <Perfil onLogout={() => setTab("home")} />}
 
@@ -1004,6 +1140,18 @@
         </AuthProvider>
       </ThemeProvider>
     );
+  </script>
+
+  <!-- Service Worker (PWA) -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker
+          .register("/sw.js")
+          .then((r) => console.log("SW registrado:", r.scope))
+          .catch((e) => console.warn("SW falló:", e));
+      });
+    }
   </script>
 </body>
 </html>

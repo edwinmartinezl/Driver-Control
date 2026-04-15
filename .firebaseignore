@@ -1,0 +1,8 @@
+colaboraciones/
+*.md
+.git/
+.gitignore
+.firebase/
+firebase-debug.log
+node_modules/
+.vscode/
