@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#58CC02" />
+  <title>Driver Control</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.25.6/babel.min.js"></script>
+
+  <!-- Firebase v10 compat (CDN, sin build step) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+  <!--
+    ============================================================
+    FIREBASE REALTIME DATABASE — RULES
+    Pegar estas reglas en: Firebase Console → Realtime Database → Rules
+    ------------------------------------------------------------
+    {
+      "rules": {
+        "users": {
+          "$uid": {
+            ".read": "$uid === auth.uid",
+            ".write": "$uid === auth.uid"
+          }
+        }
+      }
+    }
+    ============================================================
+  -->
+
+  <script>
+    // ============================================================
+    // CONFIG FIREBASE — reemplaza con tus credenciales reales.
+    // (Firebase Console → ⚙ Configuración → General → Tu app → Config)
+    // ============================================================
+    const firebaseConfig = {
+      apiKey: "AIzaSyAJJoKqfU9nROaIKksPaCAvMSNvJEOh4xg",
+      authDomain: "drivercontrol-4c88b.firebaseapp.com",
+      databaseURL: "https://drivercontrol-4c88b-default-rtdb.firebaseio.com",
+      projectId: "drivercontrol-4c88b",
+      storageBucket: "drivercontrol-4c88b.firebasestorage.app",
+      messagingSenderId: "1077821013966",
+      appId: "1:1077821013966:web:bc452bc09096d4acc9359f",
+      measurementId: "G-NM4XW6ETVG"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+  </script>
+
+  <style>
+    html, body, #root { height: 100%; }
+    body {
+      font-family: 'Nunito', system-ui, -apple-system, sans-serif;
+      background: #E5E5E5;
+      margin: 0;
+      -webkit-font-smoothing: antialiased;
+      overscroll-behavior-y: contain;
+    }
+    .app-frame {
+      max-width: 430px;
+      margin: 0 auto;
+      background: #F9F9F9;
+      min-height: 100vh;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 0 40px rgba(0,0,0,0.08);
+    }
+    @media (max-width: 430px) {
+      body { background: #F9F9F9; }
+      .app-frame { box-shadow: none; }
+    }
+
+    .btn-3d {
+      box-shadow: 0 4px 0 rgba(0,0,0,0.15);
+      transition: transform 120ms ease, box-shadow 120ms ease;
+    }
+    .btn-3d:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 rgba(0,0,0,0.15);
+    }
+    .btn-green { background: #58CC02; box-shadow: 0 4px 0 #46A302; }
+    .btn-green:active { box-shadow: 0 2px 0 #46A302; }
+    .btn-red { background: #FF4B4B; box-shadow: 0 4px 0 #CC3B3B; }
+    .btn-red:active { box-shadow: 0 2px 0 #CC3B3B; }
+    .btn-white { background: #FFFFFF; box-shadow: 0 3px 0 #E5E5E5; border: 2px solid #E5E5E5; }
+    .btn-white:active { box-shadow: 0 1px 0 #E5E5E5; }
+
+    .fab {
+      box-shadow: 0 5px 0 #46A302, 0 10px 20px rgba(88,204,2,0.35);
+    }
+    .fab:active { box-shadow: 0 2px 0 #46A302, 0 4px 10px rgba(88,204,2,0.35); transform: translate(-50%, 3px); }
+
+    .card-soft {
+      background: #FFF;
+      border-radius: 20px;
+      box-shadow: 0 2px 0 #E5E5E5, 0 4px 14px rgba(0,0,0,0.04);
+    }
+
+    .sheet-enter { animation: slideUp 260ms cubic-bezier(.2,.9,.3,1.2); }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .fade-in { animation: fade 200ms ease-out; }
+    @keyframes fade { from { opacity: 0 } to { opacity: 1 } }
+
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type="number"] { -moz-appearance: textfield; }
+
+    .hide-scroll::-webkit-scrollbar { display: none; }
+
+    /* ---------- DARK MODE ---------- */
+    body.dark-body { background: #0B0B0B; }
+    .app-frame.dark { background: #141414; color: #F0F0F0; }
+    .app-frame.dark .card-soft { background: #222; box-shadow: 0 2px 0 #000, 0 4px 14px rgba(0,0,0,0.5); }
+    .app-frame.dark .btn-white { background: #222; border-color: #333; color: #F0F0F0; box-shadow: 0 3px 0 #000; }
+
+    /* tokens de color → oscuro */
+    .app-frame.dark .text-\[\#3C3C3C\] { color: #F0F0F0 !important; }
+    .app-frame.dark .text-\[\#777\] { color: #A8A8A8 !important; }
+    .app-frame.dark .text-\[\#AAA\] { color: #8A8A8A !important; }
+    .app-frame.dark .text-\[\#999\] { color: #888 !important; }
+    .app-frame.dark .text-\[\#9AA0A6\] { color: #888 !important; }
+
+    .app-frame.dark .bg-white { background: #222 !important; }
+    .app-frame.dark .bg-\[\#F9F9F9\] { background: #1B1B1B !important; }
+    .app-frame.dark .bg-\[\#F0F0F0\] { background: #333 !important; }
+    .app-frame.dark .bg-\[\#E5E5E5\] { background: #333 !important; }
+    .app-frame.dark .bg-\[\#EEE\] { background: #333 !important; }
+    .app-frame.dark .bg-\[\#CCC\] { background: #444 !important; }
+
+    .app-frame.dark .border-\[\#EEE\],
+    .app-frame.dark .border-\[\#E5E5E5\],
+    .app-frame.dark .border-\[\#F0F0F0\] { border-color: #333 !important; }
+    .app-frame.dark .border-t { border-top-color: #2A2A2A !important; }
+    .app-frame.dark .divide-\[\#EEE\] > :not([hidden]) ~ :not([hidden]) { border-color: #2A2A2A !important; }
+
+    /* inputs en oscuro */
+    .app-frame.dark input,
+    .app-frame.dark textarea { background: #1B1B1B !important; color: #F0F0F0 !important; }
+    .app-frame.dark input::placeholder,
+    .app-frame.dark textarea::placeholder { color: #666 !important; }
+    .app-frame.dark input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.9); }
+
+    /* sheet y nav */
+    .app-frame.dark .rounded-t-3xl.bg-white { background: #1F1F1F !important; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" data-presets="react">
+    const { useState, useMemo, useEffect, createContext, useContext } = React;
+
+    // ---------- ICONS ----------
+    const CartLogo = ({ size = 72 }) => (
+      <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        {/* carrocería inferior */}
+        <path d="M6 42c0-2 1-3 3-3h46c2 0 3 1 3 3v7c0 1-1 2-2 2h-4a5 5 0 01-10 0H22a5 5 0 01-10 0H8c-1 0-2-1-2-2v-7z"
+              fill="#8B5E3C" stroke="#5E3A1F" strokeWidth="2" strokeLinejoin="round"/>
+        {/* techo y ventanas */}
+        <path d="M14 39l5-13c.7-1.8 2.2-3 4.2-3h17.6c2 0 3.5 1.2 4.2 3l5 13H14z"
+              fill="#A9744E" stroke="#5E3A1F" strokeWidth="2" strokeLinejoin="round"/>
+        <path d="M20 37l3.5-8c.4-1 1.2-1.5 2.2-1.5h12.6c1 0 1.8.5 2.2 1.5L44 37H20z"
+              fill="#CDEFFB" stroke="#5E3A1F" strokeWidth="1.5"/>
+        <line x1="32" y1="27.5" x2="32" y2="37" stroke="#5E3A1F" strokeWidth="1.5"/>
+        {/* faros */}
+        <rect x="7" y="42" width="4" height="3" rx="1" fill="#FFC800"/>
+        <rect x="53" y="42" width="4" height="3" rx="1" fill="#FF4B4B"/>
+        {/* ruedas */}
+        <circle cx="17" cy="51" r="6" fill="#2C2C2C"/>
+        <circle cx="17" cy="51" r="2.3" fill="#9AA0A6"/>
+        <circle cx="47" cy="51" r="6" fill="#2C2C2C"/>
+        <circle cx="47" cy="51" r="2.3" fill="#9AA0A6"/>
+      </svg>
+    );
+
+    const GoogleG = () => (
+      <svg width="22" height="22" viewBox="0 0 48 48">
+        <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.4 29.2 35.5 24 35.5c-6.4 0-11.5-5.1-11.5-11.5S17.6 12.5 24 12.5c2.9 0 5.6 1.1 7.6 2.9l5.7-5.7C33.7 6.5 29.1 4.5 24 4.5 13.2 4.5 4.5 13.2 4.5 24S13.2 43.5 24 43.5c10.8 0 19.5-8.7 19.5-19.5 0-1.2-.1-2.3-.4-3.5z"/>
+        <path fill="#FF3D00" d="M6.3 14.1l6.6 4.8C14.6 15.2 18.9 12.5 24 12.5c2.9 0 5.6 1.1 7.6 2.9l5.7-5.7C33.7 6.5 29.1 4.5 24 4.5 16.3 4.5 9.7 8.9 6.3 14.1z"/>
+        <path fill="#4CAF50" d="M24 43.5c5 0 9.5-1.9 12.9-5l-6-5.1c-2 1.4-4.4 2.2-6.9 2.2-5.2 0-9.6-3.4-11.2-8l-6.6 5C9.6 39 16.2 43.5 24 43.5z"/>
+        <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4-4.1 5.4l6 5.1c-.4.4 6.3-4.6 6.3-14.5 0-1.2-.1-2.3-.4-3.5z"/>
+      </svg>
+    );
+
+    const HomeIcon = ({ active }) => (
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+        <path d="M3 11l9-8 9 8v10a2 2 0 01-2 2h-4v-7h-6v7H5a2 2 0 01-2-2V11z"
+              stroke={active ? "#58CC02" : "#9AA0A6"} strokeWidth="2.3" strokeLinejoin="round"
+              fill={active ? "#DFFBC2" : "none"}/>
+      </svg>
+    );
+    const CalIcon = ({ active }) => (
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="5" width="18" height="16" rx="3" stroke={active ? "#58CC02" : "#9AA0A6"} strokeWidth="2.3" fill={active ? "#DFFBC2" : "none"}/>
+        <path d="M3 9h18M8 3v4M16 3v4" stroke={active ? "#58CC02" : "#9AA0A6"} strokeWidth="2.3" strokeLinecap="round"/>
+      </svg>
+    );
+    const UserIcon = ({ active }) => (
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="8" r="4" stroke={active ? "#58CC02" : "#9AA0A6"} strokeWidth="2.3" fill={active ? "#DFFBC2" : "none"}/>
+        <path d="M4 21c0-4 4-7 8-7s8 3 8 7" stroke={active ? "#58CC02" : "#9AA0A6"} strokeWidth="2.3" strokeLinecap="round" fill={active ? "#DFFBC2" : "none"}/>
+      </svg>
+    );
+    const BackIcon = () => (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+        <path d="M15 6l-6 6 6 6" stroke="#3C3C3C" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    );
+    const PlusIcon = () => (
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+        <path d="M12 5v14M5 12h14" stroke="white" strokeWidth="3.5" strokeLinecap="round"/>
+      </svg>
+    );
+    const CloseIcon = () => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M6 6l12 12M18 6L6 18" stroke="#3C3C3C" strokeWidth="2.6" strokeLinecap="round"/>
+      </svg>
+    );
+
+    // ---------- HELPERS ----------
+    const fmt = (n) => {
+      const v = Number(n) || 0;
+      const sign = v < 0 ? "-" : "";
+      return sign + "RD$ " + Math.abs(v).toLocaleString("es-DO");
+    };
+    const todayISO = () => {
+      const d = new Date();
+      const tz = d.getTimezoneOffset() * 60000;
+      return new Date(d - tz).toISOString().slice(0, 10);
+    };
+    const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+    const DIAS = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+
+    const parseISO = (iso) => {
+      const [y, m, d] = iso.split("-").map(Number);
+      return new Date(y, m - 1, d);
+    };
+    const fmtDiaCorto = (iso) => {
+      const d = parseISO(iso);
+      return DIAS[d.getDay()] + " " + String(d.getDate()).padStart(2, "0");
+    };
+    const fmtFechaLarga = (iso) => {
+      const d = parseISO(iso);
+      return DIAS[d.getDay()] + " " + d.getDate() + " " + MESES[d.getMonth()].slice(0, 3);
+    };
+
+    // ---------- STORAGE KEYS ----------
+    const STORAGE_KEY = "driver-control-records-v1"; // etapa 1 — solo para migración
+    const THEME_KEY = "driver-control-theme";
+
+    // ---------- CONTEXTS ----------
+    const DataContext = createContext(null);
+    const ThemeContext = createContext(null);
+    const AuthContext = createContext(null);
+
+    // ---------- THEME ----------
+    // Reset único: fuerza claro como default en esta versión
+    if (!localStorage.getItem("driver-control-theme-reset-v2")) {
+      localStorage.removeItem(THEME_KEY);
+      localStorage.setItem("driver-control-theme-reset-v2", "1");
+    }
+
+    function ThemeProvider({ children }) {
+      const [dark, setDark] = useState(() => localStorage.getItem(THEME_KEY) === "dark");
+      useEffect(() => {
+        localStorage.setItem(THEME_KEY, dark ? "dark" : "light");
+        document.body.classList.toggle("dark-body", dark);
+      }, [dark]);
+      return <ThemeContext.Provider value={{ dark, setDark, toggle: () => setDark(x => !x) }}>{children}</ThemeContext.Provider>;
+    }
+    const useTheme = () => useContext(ThemeContext);
+
+    // ---------- AUTH ----------
+    function AuthProvider({ children }) {
+      const [user, setUser] = useState(null);
+      const [ready, setReady] = useState(false);
+
+      useEffect(() => {
+        // Procesa el resultado del redirect si venimos de signInWithRedirect (móvil)
+        auth.getRedirectResult().catch(() => {});
+
+        const unsub = auth.onAuthStateChanged(u => {
+          setUser(u || null);
+          setReady(true);
+        });
+        return unsub;
+      }, []);
+
+      const signInGoogle = async () => {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        try {
+          await auth.signInWithPopup(provider);
+        } catch (e) {
+          // En móvil algunos navegadores bloquean el popup → fallback a redirect
+          if (
+            e.code === "auth/popup-blocked" ||
+            e.code === "auth/popup-closed-by-user" ||
+            e.code === "auth/cancelled-popup-request" ||
+            e.code === "auth/operation-not-supported-in-this-environment"
+          ) {
+            await auth.signInWithRedirect(provider);
+          } else {
+            throw e;
+          }
+        }
+      };
+
+      const signOut = () => auth.signOut();
+
+      return <AuthContext.Provider value={{ user, ready, signInGoogle, signOut }}>{children}</AuthContext.Provider>;
+    }
+    const useAuth = () => useContext(AuthContext);
+
+    // ---------- DATA (Realtime Database) ----------
+    async function migrateLocalStorageIfNeeded(uid) {
+      try {
+        const metaSnap = await db.ref(`users/${uid}/meta/migrated`).once("value");
+        if (metaSnap.val() === true) return;
+
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr) && arr.length > 0) {
+            const updates = {};
+            for (const r of arr) {
+              if (!r.fecha) continue;
+              const ingreso = Number(r.ingreso) || 0;
+              const gasolina = Number(r.gasolina) || 0;
+              const mantenimiento = Number(r.mantenimiento) || 0;
+              updates[`users/${uid}/registros/${r.fecha}`] = {
+                ingreso, gasolina, mantenimiento,
+                nota: (r.nota || "").trim(),
+                neto: ingreso - gasolina - mantenimiento,
+                updatedAt: firebase.database.ServerValue.TIMESTAMP,
+              };
+            }
+            await db.ref().update(updates);
+          }
+        }
+        await db.ref(`users/${uid}/meta/migrated`).set(true);
+        localStorage.removeItem(STORAGE_KEY);
+      } catch (e) {
+        console.warn("Migración localStorage → Firebase falló:", e);
+      }
+    }
+
+    function DataProvider({ children }) {
+      const { user } = useAuth();
+      const [records, setRecords] = useState([]);
+
+      useEffect(() => {
+        if (!user) { setRecords([]); return; }
+
+        migrateLocalStorageIfNeeded(user.uid);
+
+        const ref = db.ref(`users/${user.uid}/registros`);
+        const handler = ref.on("value", snap => {
+          const val = snap.val() || {};
+          const arr = Object.entries(val).map(([fecha, v]) => ({
+            fecha,
+            ingreso: Number(v.ingreso) || 0,
+            gasolina: Number(v.gasolina) || 0,
+            mantenimiento: Number(v.mantenimiento) || 0,
+            nota: v.nota || "",
+          }));
+          setRecords(arr);
+        }, err => {
+          console.warn("RTDB read error:", err);
+        });
+        return () => ref.off("value", handler);
+      }, [user]);
+
+      const upsert = (rec) => {
+        if (!user) return Promise.reject(new Error("no-user"));
+        const ingreso = Number(rec.ingreso) || 0;
+        const gasolina = Number(rec.gasolina) || 0;
+        const mantenimiento = Number(rec.mantenimiento) || 0;
+        return db.ref(`users/${user.uid}/registros/${rec.fecha}`).set({
+          ingreso, gasolina, mantenimiento,
+          nota: (rec.nota || "").trim(),
+          neto: ingreso - gasolina - mantenimiento,
+          updatedAt: firebase.database.ServerValue.TIMESTAMP,
+        });
+      };
+
+      const remove = (fecha) => {
+        if (!user) return Promise.reject(new Error("no-user"));
+        return db.ref(`users/${user.uid}/registros/${fecha}`).remove();
+      };
+
+      return <DataContext.Provider value={{ records, upsert, remove }}>{children}</DataContext.Provider>;
+    }
+
+    const useData = () => useContext(DataContext);
+
+    // ---------- SELECTORS ----------
+    const netoOf = (r) => (r.ingreso || 0) - (r.gasolina || 0) - (r.mantenimiento || 0);
+
+    const sumRecords = (recs) => recs.reduce((acc, r) => {
+      acc.ingreso += r.ingreso || 0;
+      acc.gasolina += r.gasolina || 0;
+      acc.mantenimiento += r.mantenimiento || 0;
+      acc.neto = acc.ingreso - acc.gasolina - acc.mantenimiento;
+      return acc;
+    }, { ingreso: 0, gasolina: 0, mantenimiento: 0, neto: 0 });
+
+    const recordsOfMonth = (recs, year, month) =>
+      recs.filter(r => {
+        const d = parseISO(r.fecha);
+        return d.getFullYear() === year && d.getMonth() === month;
+      });
+
+    const recordsOfCurrentWeek = (recs) => {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()); // domingo
+      const end = new Date(start); end.setDate(end.getDate() + 7);
+      return recs
+        .filter(r => {
+          const d = parseISO(r.fecha);
+          return d >= start && d < end;
+        })
+        .sort((a, b) => b.fecha.localeCompare(a.fecha));
+    };
+
+    // ---------- SCREENS ----------
+    const Spinner = ({ size = 20, color = "#58CC02" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" className="animate-spin">
+        <circle cx="12" cy="12" r="10" stroke={color} strokeOpacity="0.25" strokeWidth="3" fill="none"/>
+        <path d="M22 12a10 10 0 00-10-10" stroke={color} strokeWidth="3" fill="none" strokeLinecap="round"/>
+      </svg>
+    );
+
+    function Splash() {
+      return (
+        <div className="flex flex-col items-center justify-center h-screen bg-white">
+          <CartLogo size={100} />
+          <h1 className="mt-4 text-2xl font-black text-[#3C3C3C]">Driver Control</h1>
+          <div className="mt-6"><Spinner size={28} /></div>
+        </div>
+      );
+    }
+
+    function Login() {
+      const { signInGoogle } = useAuth();
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState("");
+
+      const handleLogin = async () => {
+        setError("");
+        setLoading(true);
+        try {
+          await signInGoogle();
+          // onAuthStateChanged se encarga de navegar; si fue redirect, recarga la página
+        } catch (e) {
+          console.warn("login error:", e);
+          setError("No pudimos conectarte. Intenta de nuevo.");
+          setLoading(false);
+        }
+      };
+
+      return (
+        <div className="flex flex-col items-center justify-between h-screen px-8 py-14 bg-white fade-in">
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <CartLogo size={110} />
+            <h1 className="mt-6 text-4xl font-black text-[#3C3C3C] tracking-tight">Driver Control</h1>
+            <p className="mt-2 text-[#777] font-semibold text-base">Controla tus ganancias cada día</p>
+          </div>
+          <div className="w-full pb-6">
+            <button
+              onClick={handleLogin}
+              disabled={loading}
+              className="btn-3d btn-white w-full h-14 rounded-full flex items-center justify-center gap-3 font-bold text-[#3C3C3C] text-base uppercase tracking-wide disabled:opacity-70">
+              {loading ? <Spinner /> : <GoogleG />}
+              {loading ? "Conectando..." : "Iniciar"}
+            </button>
+            {error && <p className="text-center text-sm text-[#FF4B4B] font-bold mt-4">{error}</p>}
+            <p className="text-center text-xs text-[#AAA] mt-6 font-semibold">
+              v1.1 by <a href="https://edservices.com.do/" target="_blank" rel="noopener noreferrer" className="text-inherit no-underline hover:no-underline">Edservices</a>
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    function Header({ title = "Driver Control", onAvatar }) {
+      const { user } = useAuth();
+      const photo = user && user.photoURL;
+      const initial = (user && (user.displayName || user.email || "U"))[0].toUpperCase();
+      return (
+        <div className="flex items-center justify-between px-5 py-4">
+          <div className="flex items-center gap-2">
+            <CartLogo size={34} />
+            <span className="font-black text-[#3C3C3C] text-lg">{title}</span>
+          </div>
+          <button onClick={onAvatar} className="w-10 h-10 rounded-full bg-[#E5E5E5] overflow-hidden flex items-center justify-center font-bold text-[#777]">
+            {photo ? <img src={photo} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : initial}
+          </button>
+        </div>
+      );
+    }
+
+    function MonthCard() {
+      const { records } = useData();
+      const d = new Date();
+      const totals = useMemo(
+        () => sumRecords(recordsOfMonth(records, d.getFullYear(), d.getMonth())),
+        [records]
+      );
+      return (
+        <div className="mx-5 rounded-3xl p-6 text-white relative overflow-hidden"
+             style={{ background: "linear-gradient(160deg,#58CC02 0%,#2A5E00 100%)", boxShadow: "0 6px 18px rgba(42,94,0,0.2)" }}>
+          <div className="text-center font-bold uppercase tracking-widest text-xs opacity-80">
+            {MESES[d.getMonth()]} {d.getFullYear()}
+          </div>
+          <div className="mt-5 grid grid-cols-3 gap-2">
+            <div>
+              <div className="text-[10px] font-bold uppercase opacity-80">Ganado</div>
+              <div className="text-sm font-black text-[#DFFBC2]">{fmt(totals.ingreso)}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-[10px] font-bold uppercase opacity-80">Gasolina</div>
+              <div className="text-sm font-black text-[#FFB4B4]">{fmt(totals.gasolina)}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] font-bold uppercase opacity-80">Mantenim.</div>
+              <div className="text-sm font-black text-[#FFE08A]">{fmt(totals.mantenimiento)}</div>
+            </div>
+          </div>
+          <div className="mt-5 text-center">
+            <div className="text-xs font-bold uppercase opacity-80">Neto del mes</div>
+            <div className="text-4xl font-black mt-1">{fmt(totals.neto)}</div>
+          </div>
+        </div>
+      );
+    }
+
+    function RecordRow({ item, onEdit }) {
+      const neto = netoOf(item);
+      const hasNota = !!(item.nota && item.nota.length);
+      return (
+        <button onClick={() => onEdit && onEdit(item)} className="card-soft px-4 py-3 w-full text-left active:scale-[0.98] transition">
+          <div className="flex items-center justify-between mb-2">
+            <div className="font-black text-[#3C3C3C] text-base">{fmtDiaCorto(item.fecha)}</div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-[10px] font-black uppercase text-[#777] tracking-wide">Neto</span>
+              <span className={"text-base font-black whitespace-nowrap " + (neto >= 0 ? "text-[#3C3C3C]" : "text-[#FF4B4B]")}>{fmt(neto)}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-1 text-center bg-[#F9F9F9] rounded-xl py-2 px-1">
+            <div>
+              <div className="text-[9px] font-black uppercase text-[#777] tracking-wide">Ingreso</div>
+              <div className="text-xs font-black text-[#58CC02] whitespace-nowrap">+{fmt(item.ingreso)}</div>
+            </div>
+            <div className="border-x border-[#EEE]">
+              <div className="text-[9px] font-black uppercase text-[#777] tracking-wide">Gasolina</div>
+              <div className="text-xs font-black text-[#FF4B4B] whitespace-nowrap">-{fmt(item.gasolina)}</div>
+            </div>
+            <div>
+              <div className="text-[9px] font-black uppercase text-[#777] tracking-wide">Mantenim.</div>
+              <div className="text-xs font-black text-[#D4A200] whitespace-nowrap">-{fmt(item.mantenimiento || 0)}</div>
+            </div>
+          </div>
+
+          {hasNota && (
+            <div className="mt-2 text-xs text-[#777] font-semibold italic flex items-start gap-1">
+              <span>📝</span><span className="flex-1 truncate">{item.nota}</span>
+            </div>
+          )}
+        </button>
+      );
+    }
+
+    function EmptyState({ title, subtitle }) {
+      return (
+        <div className="card-soft p-6 text-center">
+          <div className="text-5xl mb-2">📋</div>
+          <div className="font-black text-[#3C3C3C]">{title}</div>
+          <div className="text-sm font-semibold text-[#777] mt-1">{subtitle}</div>
+        </div>
+      );
+    }
+
+    function Home({ onEditRecord }) {
+      const { records } = useData();
+      const week = useMemo(() => recordsOfCurrentWeek(records), [records]);
+      const weekTotals = useMemo(() => sumRecords(week), [week]);
+
+      return (
+        <div className="fade-in pb-40">
+          <MonthCard />
+          <div className="px-5 mt-6">
+            <div className="flex justify-between items-end mb-3">
+              <h2 className="font-black text-[#3C3C3C] text-lg">Esta semana</h2>
+              {week.length > 0 && (
+                <span className="text-sm font-black text-[#58CC02]">{fmt(weekTotals.neto)}</span>
+              )}
+            </div>
+            {week.length === 0 ? (
+              <EmptyState title="Sin registros esta semana" subtitle="Toca el botón + para agregar tu primer día" />
+            ) : (
+              <div className="space-y-3">
+                {week.map(it => <RecordRow key={it.fecha} item={it} onEdit={onEditRecord} />)}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    function Historial({ onEditRecord }) {
+      const { records } = useData();
+      const [selected, setSelected] = useState(null); // "YYYY-MM"
+
+      const months = useMemo(() => {
+        const map = new Map();
+        for (const r of records) {
+          const key = r.fecha.slice(0, 7);
+          if (!map.has(key)) map.set(key, []);
+          map.get(key).push(r);
+        }
+        const list = Array.from(map.entries()).map(([key, recs]) => {
+          const totals = sumRecords(recs);
+          const [y, m] = key.split("-").map(Number);
+          return { key, year: y, month: m - 1, nombre: MESES[m - 1], year_: y, totals, recs };
+        });
+        list.sort((a, b) => b.key.localeCompare(a.key));
+        const maxNeto = Math.max(1, ...list.map(x => x.totals.neto));
+        return list.map(x => ({ ...x, pct: Math.max(0.05, x.totals.neto / maxNeto) }));
+      }, [records]);
+
+      if (selected) {
+        const m = months.find(x => x.key === selected);
+        if (!m) { setSelected(null); return null; }
+        const sorted = [...m.recs].sort((a, b) => b.fecha.localeCompare(a.fecha));
+        return (
+          <div className="fade-in px-5 pb-32">
+            <button onClick={() => setSelected(null)} className="flex items-center gap-1 py-3 font-bold text-[#3C3C3C]">
+              <BackIcon /> Volver
+            </button>
+            <h1 className="text-3xl font-black text-[#3C3C3C] mb-4">{m.nombre} {m.year_}</h1>
+            <div className="card-soft p-5 mb-4 grid grid-cols-2 gap-3 text-center">
+              <div>
+                <div className="text-[10px] font-black uppercase text-[#777]">Ganado</div>
+                <div className="text-base font-black text-[#58CC02]">{fmt(m.totals.ingreso)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-black uppercase text-[#777]">Gasolina</div>
+                <div className="text-base font-black text-[#FF4B4B]">{fmt(m.totals.gasolina)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-black uppercase text-[#777]">Mantenimiento</div>
+                <div className="text-base font-black text-[#D4A200]">{fmt(m.totals.mantenimiento)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-black uppercase text-[#777]">Neto</div>
+                <div className="text-base font-black text-[#3C3C3C]">{fmt(m.totals.neto)}</div>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {sorted.map(it => <RecordRow key={it.fecha} item={it} onEdit={onEditRecord} />)}
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="fade-in px-5 pb-32">
+          <h1 className="text-3xl font-black text-[#3C3C3C] pt-4 pb-5">Historial</h1>
+          {months.length === 0 ? (
+            <EmptyState title="Sin historial todavía" subtitle="Registra días para ver tus meses aquí" />
+          ) : (
+            <div className="space-y-3">
+              {months.map(m => (
+                <button key={m.key} onClick={() => setSelected(m.key)} className="card-soft p-4 w-full text-left active:scale-[0.98] transition">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-black text-[#3C3C3C] text-lg">{m.nombre} <span className="text-[#AAA] text-sm font-bold">{m.year_}</span></span>
+                    <span className="font-black text-[#58CC02]">{fmt(m.totals.neto)}</span>
+                  </div>
+                  <div className="h-2.5 bg-[#EEE] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#58CC02] rounded-full" style={{ width: (m.pct * 100).toFixed(0) + "%" }} />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function ThemeToggleRow() {
+      const { dark, toggle } = useTheme();
+      return (
+        <div className="px-5 py-4 flex justify-between items-center">
+          <span className="font-bold text-[#777]">Modo oscuro</span>
+          <button onClick={toggle}
+                  className="relative w-14 h-8 rounded-full transition"
+                  style={{ background: dark ? "#58CC02" : "#CCC", boxShadow: "inset 0 2px 4px rgba(0,0,0,0.2)" }}>
+            <span className="absolute top-1 left-1 w-6 h-6 rounded-full bg-white transition-transform flex items-center justify-center text-xs"
+                  style={{ transform: dark ? "translateX(24px)" : "translateX(0)" }}>
+              {dark ? "🌙" : "☀️"}
+            </span>
+          </button>
+        </div>
+      );
+    }
+
+    function Perfil({ onLogout }) {
+      const { records } = useData();
+      const { user, signOut } = useAuth();
+      const totals = useMemo(() => sumRecords(records), [records]);
+      const photo = user && user.photoURL;
+      const name = (user && user.displayName) || "Usuario";
+      const email = (user && user.email) || "";
+      const initial = name[0].toUpperCase();
+
+      const handleLogout = async () => {
+        await signOut();
+        if (onLogout) onLogout();
+      };
+
+      return (
+        <div className="fade-in flex flex-col items-center px-8 pt-10 pb-32">
+          <div className="w-28 h-28 rounded-full bg-[#E5E5E5] overflow-hidden flex items-center justify-center text-4xl font-black text-[#999]">
+            {photo ? <img src={photo} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : initial}
+          </div>
+          <h1 className="mt-5 text-2xl font-black text-[#3C3C3C]">{name}</h1>
+          <p className="text-[#777] font-semibold">{email}</p>
+
+          <div className="w-full card-soft mt-6 p-4 grid grid-cols-3 gap-2 text-center">
+            <div>
+              <div className="text-[10px] font-black uppercase text-[#777]">Registros</div>
+              <div className="text-xl font-black text-[#3C3C3C]">{records.length}</div>
+            </div>
+            <div>
+              <div className="text-[10px] font-black uppercase text-[#777]">Ganado total</div>
+              <div className="text-sm font-black text-[#58CC02]">{fmt(totals.ingreso)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] font-black uppercase text-[#777]">Neto total</div>
+              <div className="text-sm font-black text-[#3C3C3C]">{fmt(totals.neto)}</div>
+            </div>
+          </div>
+
+          <div className="w-full card-soft mt-4 divide-y divide-[#EEE]">
+            <ThemeToggleRow />
+            <div className="px-5 py-4 flex justify-between"><span className="font-bold text-[#777]">Moneda</span><span className="font-bold text-[#3C3C3C]">RD$</span></div>
+            <div className="px-5 py-4 flex justify-between"><span className="font-bold text-[#777]">Versión</span><span className="font-bold text-[#3C3C3C]">1.0.0</span></div>
+          </div>
+
+          <button onClick={handleLogout} className="btn-3d btn-red mt-8 w-full h-14 rounded-full text-white font-black uppercase tracking-wide">
+            Cerrar sesión
+          </button>
+        </div>
+      );
+    }
+
+    function RegisterSheet({ open, onClose, editing }) {
+      const { upsert, remove, records } = useData();
+      const [fecha, setFecha] = useState(todayISO());
+      const [ingreso, setIngreso] = useState("");
+      const [gasolina, setGasolina] = useState("");
+      const [mantenimiento, setMantenimiento] = useState("");
+      const [nota, setNota] = useState("");
+      const [saving, setSaving] = useState(false);
+      const [saveError, setSaveError] = useState("");
+
+      useEffect(() => {
+        if (!open) return;
+        if (editing) {
+          setFecha(editing.fecha);
+          setIngreso(String(editing.ingreso || ""));
+          setGasolina(String(editing.gasolina || ""));
+          setMantenimiento(editing.mantenimiento ? String(editing.mantenimiento) : "");
+          setNota(editing.nota || "");
+        } else {
+          setFecha(todayISO());
+          setIngreso("");
+          setGasolina("");
+          setMantenimiento("");
+          setNota("");
+        }
+      }, [open, editing]);
+
+      const neto = useMemo(
+        () => (Number(ingreso) || 0) - (Number(gasolina) || 0) - (Number(mantenimiento) || 0),
+        [ingreso, gasolina, mantenimiento]
+      );
+      const existing = useMemo(() => records.find(r => r.fecha === fecha && (!editing || editing.fecha !== fecha)), [records, fecha, editing]);
+
+      if (!open) return null;
+
+      const canSave = fecha && (ingreso !== "" || gasolina !== "" || mantenimiento !== "" || nota.trim() !== "") && !saving;
+
+      const handleSave = async () => {
+        if (!canSave) return;
+        setSaveError("");
+        setSaving(true);
+        try {
+          await upsert({ fecha, ingreso, gasolina, mantenimiento, nota });
+          setSaving(false);
+          onClose();
+        } catch (e) {
+          console.warn("save error:", e);
+          setSaveError("No se pudo guardar. Revisa tu conexión.");
+          setSaving(false);
+        }
+      };
+
+      const handleDelete = async () => {
+        if (!editing) return;
+        if (!confirm("¿Eliminar este registro?")) return;
+        setSaving(true);
+        try {
+          await remove(editing.fecha);
+          onClose();
+        } catch (e) {
+          setSaveError("No se pudo eliminar. Revisa tu conexión.");
+          setSaving(false);
+        }
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.5)" }} onClick={onClose}>
+          <div className="w-full max-w-[430px] bg-white rounded-t-3xl p-6 pb-8 sheet-enter max-h-[92vh] overflow-y-auto hide-scroll" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-5">
+              <h2 className="text-2xl font-black text-[#3C3C3C]">{editing ? "Editar día" : "Registrar día"}</h2>
+              <button onClick={onClose} className="w-10 h-10 rounded-full bg-[#F0F0F0] flex items-center justify-center"><CloseIcon /></button>
+            </div>
+
+            <label className="block text-xs font-black uppercase text-[#777] mb-1">Fecha</label>
+            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
+                   className="w-full h-14 px-4 rounded-2xl border-2 border-[#E5E5E5] font-bold text-[#3C3C3C] mb-1 outline-none focus:border-[#58CC02]" />
+            {existing && (
+              <p className="text-xs font-bold text-[#FFC800] mb-3">⚠ Ya existe registro en esta fecha. Se sobrescribirá.</p>
+            )}
+            {!existing && <div className="mb-3" />}
+
+            <label className="block text-xs font-black uppercase text-[#777] mb-1">Ingreso Uber</label>
+            <input type="number" inputMode="numeric" placeholder="0" value={ingreso} onChange={e => setIngreso(e.target.value)}
+                   className="w-full h-14 px-4 rounded-2xl border-2 border-[#E5E5E5] font-bold text-[#3C3C3C] text-lg mb-4 outline-none focus:border-[#58CC02]" />
+
+            <label className="block text-xs font-black uppercase text-[#777] mb-1">Gasto gasolina</label>
+            <input type="number" inputMode="numeric" placeholder="0" value={gasolina} onChange={e => setGasolina(e.target.value)}
+                   className="w-full h-14 px-4 rounded-2xl border-2 border-[#E5E5E5] font-bold text-[#3C3C3C] text-lg mb-4 outline-none focus:border-[#FF4B4B]" />
+
+            <label className="block text-xs font-black uppercase text-[#777] mb-1">Mantenimiento</label>
+            <input type="number" inputMode="numeric" placeholder="0" value={mantenimiento} onChange={e => setMantenimiento(e.target.value)}
+                   className="w-full h-14 px-4 rounded-2xl border-2 border-[#E5E5E5] font-bold text-[#3C3C3C] text-lg mb-4 outline-none focus:border-[#FFC800]" />
+
+            <label className="block text-xs font-black uppercase text-[#777] mb-1">Nota</label>
+            <textarea value={nota} onChange={e => setNota(e.target.value)} rows={2}
+                      placeholder="Ej: cambio de aceite, gomas, pasajero raro…"
+                      className="w-full px-4 py-3 rounded-2xl border-2 border-[#E5E5E5] font-semibold text-[#3C3C3C] text-sm mb-4 outline-none focus:border-[#58CC02] resize-none" />
+
+            <div className="rounded-2xl p-4 mb-6" style={{ background: neto >= 0 ? "#DFFBC2" : "#FFE3E3" }}>
+              <div className="text-xs font-black uppercase" style={{ color: neto >= 0 ? "#46A302" : "#CC3B3B" }}>Neto</div>
+              <div className="text-3xl font-black" style={{ color: neto >= 0 ? "#46A302" : "#CC3B3B" }}>{fmt(neto)}</div>
+            </div>
+
+            <button onClick={handleSave} disabled={!canSave}
+                    className={"btn-3d w-full h-14 rounded-full text-white font-black uppercase tracking-wide flex items-center justify-center gap-2 " + (canSave ? "btn-green" : "bg-[#CCC]")}
+                    style={!canSave ? { boxShadow: "0 4px 0 #AAA" } : {}}>
+              {saving && <Spinner size={18} color="#FFFFFF" />}
+              {saving ? "Guardando..." : (editing ? "Actualizar" : "Guardar")}
+            </button>
+
+            {saveError && <p className="text-center text-sm text-[#FF4B4B] font-bold mt-3">{saveError}</p>}
+
+            {editing && (
+              <button onClick={handleDelete} disabled={saving} className="w-full h-12 mt-3 rounded-full font-black uppercase tracking-wide text-[#FF4B4B] disabled:opacity-50">
+                Eliminar registro
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    function BottomNav({ tab, setTab }) {
+      const items = [
+        { id: "home", label: "Inicio", Icon: HomeIcon },
+        { id: "hist", label: "Historial", Icon: CalIcon },
+        { id: "perf", label: "Perfil", Icon: UserIcon },
+      ];
+      return (
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white border-t border-[#EEE] z-30">
+          <div className="flex justify-around items-center pt-2 pb-3">
+            {items.map(it => {
+              const active = tab === it.id;
+              return (
+                <button key={it.id} onClick={() => setTab(it.id)} className="flex flex-col items-center gap-1 px-5 py-1">
+                  <it.Icon active={active} />
+                  <span className={"text-[11px] font-black uppercase " + (active ? "text-[#58CC02]" : "text-[#9AA0A6]")}>{it.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // ---------- APP ----------
+    function App() {
+      const { user, ready } = useAuth();
+      const [tab, setTab] = useState("home");
+      const [sheet, setSheet] = useState(false);
+      const [editing, setEditing] = useState(null);
+
+      const openNew = () => { setEditing(null); setSheet(true); };
+      const openEdit = (rec) => { setEditing(rec); setSheet(true); };
+      const closeSheet = () => { setSheet(false); setEditing(null); };
+
+      if (!ready) return <AppFrame><Splash /></AppFrame>;
+      if (!user) return <AppFrame><Login /></AppFrame>;
+
+      return (
+        <AppFrame>
+          {tab === "home" && <>
+            <Header onAvatar={() => setTab("perf")} />
+            <Home onEditRecord={openEdit} />
+          </>}
+          {tab === "hist" && <Historial onEditRecord={openEdit} />}
+          {tab === "perf" && <Perfil onLogout={() => setTab("home")} />}
+
+          {tab !== "perf" && (
+            <button onClick={openNew}
+                    className="fixed bottom-[90px] left-1/2 -translate-x-1/2 w-12 h-12 rounded-full bg-[#58CC02] flex items-center justify-center z-20 active:scale-95 transition"
+                    style={{ maxWidth: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.2)" }}>
+              <PlusIcon />
+            </button>
+          )}
+
+          <BottomNav tab={tab} setTab={setTab} />
+          <RegisterSheet open={sheet} onClose={closeSheet} editing={editing} />
+        </AppFrame>
+      );
+    }
+
+    function AppFrame({ children }) {
+      const { dark } = useTheme();
+      return <div className={"app-frame " + (dark ? "dark" : "")}>{children}</div>;
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(
+      <ThemeProvider>
+        <AuthProvider>
+          <DataProvider>
+            <App />
+          </DataProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    );
+  </script>
+</body>
+</html>
