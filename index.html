@@ -739,18 +739,30 @@
           <h1 className="mt-5 text-2xl font-black text-[#3C3C3C]">{name}</h1>
           <p className="text-[#777] font-semibold">{email}</p>
 
-          <div className="w-full card-soft mt-6 p-4 grid grid-cols-3 gap-2 text-center">
-            <div>
-              <div className="text-[10px] font-black uppercase text-[#777]">Registros</div>
-              <div className="text-xl font-black text-[#3C3C3C]">{records.length}</div>
+          <div className="w-full card-soft mt-6 p-4">
+            <div className="flex justify-between items-center mb-3 pb-3 border-b border-[#EEE]">
+              <div>
+                <div className="text-[10px] font-black uppercase text-[#777]">Registros</div>
+                <div className="text-lg font-black text-[#3C3C3C]">{records.length}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] font-black uppercase text-[#777]">Neto acumulado</div>
+                <div className={"text-xl font-black " + (totals.neto >= 0 ? "text-[#58CC02]" : "text-[#FF4B4B]")}>{fmt(totals.neto)}</div>
+              </div>
             </div>
-            <div>
-              <div className="text-[10px] font-black uppercase text-[#777]">Ganado total</div>
-              <div className="text-sm font-black text-[#58CC02]">{fmt(totals.ingreso)}</div>
-            </div>
-            <div>
-              <div className="text-[10px] font-black uppercase text-[#777]">Neto total</div>
-              <div className="text-sm font-black text-[#3C3C3C]">{fmt(totals.neto)}</div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <div className="text-[10px] font-black uppercase text-[#777]">Ganado</div>
+                <div className="text-sm font-black text-[#58CC02]">{fmt(totals.ingreso)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-black uppercase text-[#777]">Gasolina</div>
+                <div className="text-sm font-black text-[#FF4B4B]">{fmt(totals.gasolina)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-black uppercase text-[#777]">Mantenim.</div>
+                <div className="text-sm font-black text-[#D4A200]">{fmt(totals.mantenimiento)}</div>
+              </div>
             </div>
           </div>
 
@@ -776,6 +788,8 @@
       const [nota, setNota] = useState("");
       const [saving, setSaving] = useState(false);
       const [saveError, setSaveError] = useState("");
+      const [confirmDel, setConfirmDel] = useState(false);
+      const [deleting, setDeleting] = useState(false);
 
       useEffect(() => {
         if (!open) return;
@@ -819,16 +833,21 @@
         }
       };
 
-      const handleDelete = async () => {
-        if (!editing) return;
-        if (!confirm("¿Eliminar este registro?")) return;
-        setSaving(true);
+      const askDelete = () => { setSaveError(""); setConfirmDel(true); };
+
+      const confirmDelete = async () => {
+        if (!editing || deleting) return;
+        setDeleting(true);
+        setSaveError("");
         try {
           await remove(editing.fecha);
+          setConfirmDel(false);
+          setDeleting(false);
           onClose();
         } catch (e) {
+          console.warn("delete error:", e);
           setSaveError("No se pudo eliminar. Revisa tu conexión.");
-          setSaving(false);
+          setDeleting(false);
         }
       };
 
@@ -880,9 +899,31 @@
             {saveError && <p className="text-center text-sm text-[#FF4B4B] font-bold mt-3">{saveError}</p>}
 
             {editing && (
-              <button onClick={handleDelete} disabled={saving} className="w-full h-12 mt-3 rounded-full font-black uppercase tracking-wide text-[#FF4B4B] disabled:opacity-50">
+              <button onClick={askDelete} disabled={saving} className="w-full h-12 mt-3 rounded-full font-black uppercase tracking-wide text-[#FF4B4B] disabled:opacity-50">
                 Eliminar registro
               </button>
+            )}
+
+            {confirmDel && (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => !deleting && setConfirmDel(false)}>
+                <div className="w-full max-w-[360px] bg-white rounded-3xl p-6 fade-in" onClick={e => e.stopPropagation()}>
+                  <h3 className="text-xl font-black text-[#3C3C3C] text-center">¿Eliminar registro?</h3>
+                  <p className="text-sm font-semibold text-[#777] text-center mt-2">
+                    Se borrará <span className="font-black text-[#3C3C3C]">{fmtFechaLarga(editing.fecha)}</span>. Esta acción no se puede deshacer.
+                  </p>
+                  <div className="mt-5 flex flex-col gap-3">
+                    <button onClick={confirmDelete} disabled={deleting}
+                            className="btn-3d btn-red w-full h-12 rounded-full text-white font-black uppercase tracking-wide flex items-center justify-center gap-2 disabled:opacity-70">
+                      {deleting && <Spinner size={16} color="#FFFFFF" />}
+                      {deleting ? "Eliminando..." : "Sí, eliminar"}
+                    </button>
+                    <button onClick={() => setConfirmDel(false)} disabled={deleting}
+                            className="w-full h-11 rounded-full font-black uppercase tracking-wide text-[#777] disabled:opacity-50">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>
