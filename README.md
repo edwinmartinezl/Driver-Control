@@ -1,5 +1,7 @@
 # Driver Control
 
+<img src="screenshots/login.png" alt="Pantalla de inicio de Driver Control" width="280" />
+
 PWA (Progressive Web App) para que un conductor de Uber/apps de transporte
 registre, día por día, cuánto ganó y cuánto gastó (gasolina, mantenimiento) y
 vea su neto — por semana, por mes y acumulado. Un solo archivo HTML, sin paso
