@@ -4,6 +4,7 @@
   <img src="screenshots/login.png" alt="Pantalla de login de Driver Control" width="260" />
   <img src="screenshots/home.png" alt="Pantalla de inicio con resumen del mes" width="260" />
   <img src="screenshots/registrar-dia.png" alt="Formulario para registrar un día" width="260" />
+  <img src="screenshots/perfil.png" alt="Pantalla de perfil con totales acumulados" width="260" />
 </p>
 
 PWA (Progressive Web App) para que un conductor de Uber/apps de transporte
